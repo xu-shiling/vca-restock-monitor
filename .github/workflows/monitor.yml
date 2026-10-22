@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "check / test-email / test-bark / probe"
+        description: "check / test-email / test-bark / probe / drill"
         default: check
         type: choice
-        options: [check, test-email, test-bark, probe]
+        options: [check, test-email, test-bark, probe, drill]
 
 concurrency:
   group: vca-monitor
@@ -45,6 +45,7 @@ jobs:
             test-email) python monitor.py --test-email ;;
             test-bark)  python monitor.py --test-bark ;;
             probe)      python monitor.py --probe --timeout 15 ;;
+            drill)      python monitor.py --drill ;;
             *)          python monitor.py ;;
           esac
       - name: Upload screenshot

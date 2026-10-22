@@ -50,6 +50,30 @@ CLICKABLE = "button, a, [role='button'], input[type='submit'], input[type='butto
 # several copies for desktop / sticky bar) with this class. When present, only
 # these are considered, so header or footer links can never trigger an alert.
 PDP_CTA = "[class*='vca-pdp-v2-cta-common']"
+# The page must show this reference, so a redirect to another product (or a
+# block page) can never be mistaken for our bracelet.
+REFERENCE = "VCARD35600"
+
+# Drill only: make the real page look restocked by revealing the hidden
+# ADD TO BAG buttons and hiding ORDER BY PHONE, exactly as a restock would.
+SIMULATE_RESTOCK_JS = """
+cta => {
+  const reveal = el => {
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+      const s = getComputedStyle(n);
+      if (s.display === 'none') n.style.setProperty('display', 'block', 'important');
+      if (s.visibility !== 'visible') n.style.setProperty('visibility', 'visible', 'important');
+      if (parseFloat(s.opacity) === 0) n.style.setProperty('opacity', '1', 'important');
+      n.removeAttribute('hidden');
+    }
+  };
+  for (const el of document.querySelectorAll(cta)) {
+    const t = el.innerText.trim().toUpperCase();
+    if (t === 'ADD TO BAG') reveal(el);
+    else if (t === 'ORDER BY PHONE') el.style.setProperty('display', 'none', 'important');
+  }
+}
+"""
 
 # Stricter than Playwright's is_visible(): also rejects opacity:0, `hidden`
 # ancestors, zero-size boxes and elements pushed fully off-screen.
@@ -135,7 +159,7 @@ def probe(url, wait_s):
         browser.close()
 
 
-def check_stock(url, screenshot_dir, timeout_s, headed=False):
+def check_stock(url, screenshot_dir, timeout_s, headed=False, simulate=False):
     """Return ('in_stock'|'out_of_stock'|'unknown', detail)."""
     with sync_playwright() as p:
         launch = {"headless": not headed, "args": ["--disable-blink-features=AutomationControlled"]}
@@ -156,8 +180,22 @@ def check_stock(url, screenshot_dir, timeout_s, headed=False):
             page.goto(url, wait_until="domcontentloaded", timeout=60_000)
             # Stock status is filled in by JS after load; poll until one button shows up.
             start = dt.datetime.now()
+            simulated = False
             while True:
                 elapsed = (dt.datetime.now() - start).total_seconds()
+                if REFERENCE not in (page.locator("body").inner_text(timeout=5000) or ""):
+                    if elapsed >= timeout_s:
+                        break
+                    page.wait_for_timeout(1000)
+                    continue
+                if simulate and not simulated:
+                    before = visible_buttons(page, OUT_OF_STOCK_TEXTS)
+                    if not before and elapsed < timeout_s:
+                        page.wait_for_timeout(1000)
+                        continue
+                    log(f"drill: real page shows {before}; simulating restock")
+                    page.evaluate(SIMULATE_RESTOCK_JS, PDP_CTA)
+                    simulated = True
                 in_stock = visible_buttons(page, IN_STOCK_TEXTS)
                 out_stock = visible_buttons(page, OUT_OF_STOCK_TEXTS)
                 if in_stock:
@@ -173,6 +211,8 @@ def check_stock(url, screenshot_dir, timeout_s, headed=False):
             tag = "cn" if region(url) == "中国" else "sg"
             shot = screenshot_dir / f"unknown_{tag}_{dt.datetime.now():%Y%m%d_%H%M%S}.png"
             page.screenshot(path=str(shot), full_page=True)
+            if REFERENCE not in (page.locator("body").inner_text(timeout=5000) or ""):
+                return "unknown", f"{REFERENCE} not found on page (blocked or wrong product); title={page.title()!r}; screenshot={shot}"
             return "unknown", f"no purchase button visible; title={page.title()!r}; screenshot={shot}"
         finally:
             browser.close()
@@ -214,9 +254,12 @@ def send_email(subject, body):
         smtp.send_message(msg)
 
 
-def alert_in_stock(url, detail):
+def alert_in_stock(url, detail, drill=False):
     title = f"VCA {region(url)}官网有货了！马上下单"
     body = f"{region(url)}官网 Vintage Alhambra 手链 5 花 虎眼石 (VCARD35600) 已可购买。\n{detail}\n{url}"
+    if drill:
+        title = "【演练，不是真的有货】" + title
+        body = "这是在真实商品页上模拟补货的演练，现在并没有货。\n" + body
     ok = True
     for name, fn in (("Bark", lambda: send_bark(title, body, url)),
                      ("Email", lambda: send_email(title, body))):
@@ -237,6 +280,8 @@ def main():
     ap.add_argument("--test-bark", action="store_true", help="send a test critical Bark alert and exit")
     ap.add_argument("--timeout", type=float, default=30, help="seconds to wait for a button to appear")
     ap.add_argument("--screenshot-dir", type=Path, default=Path("screenshots"))
+    ap.add_argument("--drill", action="store_true",
+                    help="load the real page, simulate a restock and send real (marked) alerts")
     ap.add_argument("--probe", action="store_true", help="list all buttons on the page and exit")
     ap.add_argument("--headed", action="store_true", help="show the browser (local debugging)")
     args = ap.parse_args()
@@ -265,11 +310,11 @@ def main():
     code = 0
     for url in urls:
         try:
-            status, detail = check_stock(url, args.screenshot_dir, args.timeout, args.headed)
+            status, detail = check_stock(url, args.screenshot_dir, args.timeout, args.headed, args.drill)
         except Exception as e:  # one site failing must not stop the other
             status, detail = "unknown", f"error: {e}"
         log(f"[{region(url)}] status={status} {detail}")
-        if status == "in_stock" and not alert_in_stock(url, detail):
+        if status == "in_stock" and not alert_in_stock(url, detail, args.drill):
             code = 2
         elif status == "unknown" and code == 0:
             code = 1
