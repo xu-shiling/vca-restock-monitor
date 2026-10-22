@@ -67,7 +67,8 @@ def log(msg):
 
 
 def env(name, default=None, required=True):
-    val = os.environ.get(name, default)
+    # Strip pasted whitespace, e.g. "abcd efgh ijkl mnop" app passwords.
+    val = "".join((os.environ.get(name) or default or "").split())
     if required and not val:
         raise RuntimeError(f"missing environment variable {name}")
     return val
@@ -214,7 +215,9 @@ def main():
                 send_bark("VCA 补货监控 - 测试", "Bark 紧急提醒配置正常", urls[0])
                 log("test Bark alert sent")
         except Exception as e:
-            log(f"test FAILED: {e}")
+            log(f"test FAILED: {type(e).__name__}: {e}")
+            if isinstance(e, smtplib.SMTPAuthenticationError):
+                log("Gmail rejected the login: check GMAIL_USER and GMAIL_APP_PASSWORD (16-char app password, 2-Step Verification on)")
             return 2
         return 0
 
