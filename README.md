@@ -15,14 +15,14 @@ https://www.vancleefarpels.com/sg/en/collections/jewelry/alhambra/vcard35600---v
    | `BARK_SERVER` | 可选，自建 Bark 服务器地址 |
 3. iPhone：设置 → 通知 → Bark → 打开 **“紧急警告/Critical Alerts”**，否则静音时不会响。
 4. Actions 页面 → VCA restock monitor → Run workflow，依次选择 `test-email`、`test-bark`，确认手机响铃、收到邮件。
-5. 之后每 5 分钟自动检查一次。
+5. 最后手动运行一次 `check`：它会每 2 分钟检查一次，约 5.5 小时后自动接力启动下一次，一直跑下去，不用再管。
 
 ## 结果说明
 - 绿色 ✅：检查正常（无货或有货且已提醒）
 - 红色 ❌ 退出码 1：两个按钮都没看到（可能被反爬拦截或页面改版），在该次运行的 Artifacts 里下载截图查看
 - 红色 ❌ 退出码 2：有货但提醒发送失败
 
-有货后每 5 分钟会持续提醒，买到后在 Actions 页面点 “Disable workflow” 停止。
+有货期间每 10 分钟会再提醒一次，买到后在 Actions 页面点 “Disable workflow” 停止。
 
 ## 本地运行
 ```bash
