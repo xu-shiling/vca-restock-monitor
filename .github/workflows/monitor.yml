@@ -1,0 +1,55 @@
+name: VCA restock monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # GitHub 最短间隔 5 分钟，高峰期可能延迟
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check / test-email / test-bark"
+        default: check
+        type: choice
+        options: [check, test-email, test-bark]
+
+concurrency:
+  group: vca-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BARK_KEY: ${{ secrets.BARK_KEY }}
+      BARK_SERVER: ${{ secrets.BARK_SERVER }}
+      GMAIL_USER: ${{ secrets.GMAIL_USER }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      MAIL_TO: ${{ secrets.MAIL_TO }}
+      PRODUCT_URL: ${{ vars.PRODUCT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ hashFiles('requirements.txt') }}
+      - run: python -m playwright install --with-deps chromium
+      - name: Run
+        run: |
+          case "${{ github.event.inputs.mode || 'check' }}" in
+            test-email) python monitor.py --test-email ;;
+            test-bark)  python monitor.py --test-bark ;;
+            *)          python monitor.py ;;
+          esac
+      - name: Upload screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_id }}
+          path: screenshots/
+          if-no-files-found: ignore
