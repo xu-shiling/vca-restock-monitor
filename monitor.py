@@ -104,6 +104,31 @@ def region(url):
     return "中国" if ".cn/" in url else "新加坡"
 
 
+def probe(url, wait_s):
+    """Print every button-like element (visible or not) so the real
+    in-stock / out-of-stock texts can be read off a live page."""
+    with sync_playwright() as p:
+        launch = {"headless": True, "args": ["--disable-blink-features=AutomationControlled"]}
+        if os.environ.get("CHROMIUM_PATH"):
+            launch["executable_path"] = os.environ["CHROMIUM_PATH"]
+        browser = p.chromium.launch(**launch)
+        page = browser.new_page(locale="en-SG", viewport={"width": 1366, "height": 900})
+        page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+        page.wait_for_timeout(wait_s * 1000)
+        log(f"probe {url} title={page.title()!r}")
+        for el in page.locator(CLICKABLE).all():
+            try:
+                text = " ".join((el.inner_text() or el.get_attribute("value") or "").split())
+                if not text or len(text) > 60:
+                    continue
+                shown = el.is_visible() and el.evaluate(TRULY_VISIBLE_JS)
+                cls = (el.get_attribute("class") or "")[:80]
+                print(f"  {'VISIBLE' if shown else 'hidden '} | {text!r} | class={cls!r}", flush=True)
+            except Exception:
+                continue
+        browser.close()
+
+
 def check_stock(url, screenshot_dir, timeout_s, headed=False):
     """Return ('in_stock'|'out_of_stock'|'unknown', detail)."""
     with sync_playwright() as p:
@@ -206,9 +231,15 @@ def main():
     ap.add_argument("--test-bark", action="store_true", help="send a test critical Bark alert and exit")
     ap.add_argument("--timeout", type=float, default=30, help="seconds to wait for a button to appear")
     ap.add_argument("--screenshot-dir", type=Path, default=Path("screenshots"))
+    ap.add_argument("--probe", action="store_true", help="list all buttons on the page and exit")
     ap.add_argument("--headed", action="store_true", help="show the browser (local debugging)")
     args = ap.parse_args()
     urls = args.urls or os.environ.get("PRODUCT_URL", "").split() or DEFAULT_URLS
+
+    if args.probe:
+        for url in urls:
+            probe(url, args.timeout)
+        return 0
 
     if args.test_email or args.test_bark:
         try:
