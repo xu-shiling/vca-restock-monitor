@@ -24,6 +24,7 @@ import os
 import re
 import smtplib
 import sys
+import time
 import urllib.request
 from email.message import EmailMessage
 from pathlib import Path
@@ -41,6 +42,7 @@ CN_URL = (
     "vcard35600---vintage-alhambra-bracelet-5-motifs.html"
 )
 DEFAULT_URLS = [SG_URL]
+ALERT_REPEAT_S = 10 * 60
 # Case-insensitive; matched against the button's visible text.
 IN_STOCK_TEXTS = ["add to bag", "add to cart", "buy now", "加入购物袋", "立即购买", "立刻购买"]
 OUT_OF_STOCK_TEXTS = ["order by phone", "contact an ambassador", "call to order", "电话订购", "致电订购"]
@@ -282,6 +284,9 @@ def main():
     ap.add_argument("--screenshot-dir", type=Path, default=Path("screenshots"))
     ap.add_argument("--drill", action="store_true",
                     help="load the real page, simulate a restock and send real (marked) alerts")
+    ap.add_argument("--loop-minutes", type=float, default=0,
+                    help="keep checking for this many minutes (0 = check once)")
+    ap.add_argument("--interval", type=float, default=120, help="seconds between checks in loop mode")
     ap.add_argument("--probe", action="store_true", help="list all buttons on the page and exit")
     ap.add_argument("--headed", action="store_true", help="show the browser (local debugging)")
     args = ap.parse_args()
@@ -307,6 +312,26 @@ def main():
             return 2
         return 0
 
+    if args.loop_minutes <= 0:
+        return run_once(urls, args, {})
+
+    # Watch mode: check every --interval seconds for --loop-minutes, so one
+    # GitHub Actions run covers hours instead of relying on its flaky cron.
+    deadline = time.monotonic() + args.loop_minutes * 60
+    last_alert = {}
+    passes = unknown_passes = 0
+    while True:
+        passes += 1
+        if run_once(urls, args, last_alert) == 1:
+            unknown_passes += 1
+        if time.monotonic() + args.interval >= deadline:
+            break
+        time.sleep(args.interval)
+    log(f"watch finished: {passes} checks, {unknown_passes} could not read the page")
+    return 1 if unknown_passes * 2 > passes else 0
+
+
+def run_once(urls, args, last_alert):
     code = 0
     for url in urls:
         try:
@@ -314,12 +339,16 @@ def main():
         except Exception as e:  # one site failing must not stop the other
             status, detail = "unknown", f"error: {e}"
         log(f"[{region(url)}] status={status} {detail}")
-        if status == "in_stock" and not alert_in_stock(url, detail, args.drill):
-            code = 2
+        if status == "in_stock":
+            # While it stays in stock, re-alert every ALERT_REPEAT_S, not every check.
+            if time.monotonic() - last_alert.get(url, -1e9) < ALERT_REPEAT_S:
+                continue
+            last_alert[url] = time.monotonic()
+            if not alert_in_stock(url, detail, args.drill):
+                code = 2
         elif status == "unknown" and code == 0:
             code = 1
     return code
-
 
 if __name__ == "__main__":
     sys.exit(main())

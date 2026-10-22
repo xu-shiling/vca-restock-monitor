@@ -1,8 +1,10 @@
 name: VCA restock monitor
 
+# check 模式：一次运行连续监控约 5.5 小时（每 2 分钟查一次），结束前自动启动下一次，
+# 所以只要手动点一次 Run workflow 就会一直跑下去。定时任务只是备用。
 on:
   schedule:
-    - cron: "3-59/5 * * * *"   # 每 5 分钟（避开整点高峰）；GitHub 高峰期可能延迟
+    - cron: "3 */6 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -11,15 +13,21 @@ on:
         type: choice
         options: [check, test-email, test-bark, probe, drill]
 
+# 只让一个 check 在跑；测试类模式各自独立，不用排队等监控结束。
 concurrency:
-  group: vca-monitor
+  group: vca-${{ (github.event.inputs.mode || 'check') == 'check' && 'watch' || github.run_id }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write   # 用来启动下一次运行
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 350
     env:
+      MODE: ${{ github.event.inputs.mode || 'check' }}
       BARK_KEY: ${{ secrets.BARK_KEY }}
       BARK_SERVER: ${{ secrets.BARK_SERVER }}
       GMAIL_USER: ${{ secrets.GMAIL_USER }}
@@ -41,13 +49,18 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - name: Run
         run: |
-          case "${{ github.event.inputs.mode || 'check' }}" in
+          case "$MODE" in
             test-email) python monitor.py --test-email ;;
             test-bark)  python monitor.py --test-bark ;;
             probe)      python monitor.py --probe --timeout 15 ;;
             drill)      python monitor.py --drill ;;
-            *)          python monitor.py ;;
+            *)          python monitor.py --loop-minutes 325 --interval 120 ;;
           esac
+      - name: Start next watch run
+        if: always() && env.MODE == 'check'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run monitor.yml --repo "$GITHUB_REPOSITORY" --ref main -f mode=check
       - name: Upload screenshot
         if: failure()
         uses: actions/upload-artifact@v4
