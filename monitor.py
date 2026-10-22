@@ -46,6 +46,10 @@ IN_STOCK_TEXTS = ["add to bag", "add to cart", "buy now", "加入购物袋", "�
 OUT_OF_STOCK_TEXTS = ["order by phone", "contact an ambassador", "call to order", "电话订购", "致电订购"]
 
 CLICKABLE = "button, a, [role='button'], input[type='submit'], input[type='button']"
+# VCA product pages mark the purchase buttons (ADD TO BAG / ORDER BY PHONE, in
+# several copies for desktop / sticky bar) with this class. When present, only
+# these are considered, so header or footer links can never trigger an alert.
+PDP_CTA = "[class*='vca-pdp-v2-cta-common']"
 
 # Stricter than Playwright's is_visible(): also rejects opacity:0, `hidden`
 # ancestors, zero-size boxes and elements pushed fully off-screen.
@@ -80,9 +84,11 @@ def env(name, default=None, required=True):
 
 def visible_buttons(page, texts):
     """Return the texts of visible clickable elements matching any of `texts`."""
-    pattern = re.compile("|".join(re.escape(t) for t in texts), re.I)
+    # Whole-text match: "ADD TO BAG" counts, "MY SHOPPING BAG" etc. do not.
+    pattern = re.compile(r"^\s*(?:" + "|".join(re.escape(t) for t in texts) + r")\s*$", re.I)
     found = []
-    candidates = page.locator(CLICKABLE).filter(has_text=pattern)
+    scope = PDP_CTA if page.locator(PDP_CTA).count() else CLICKABLE
+    candidates = page.locator(scope).filter(has_text=pattern)
     for i in range(candidates.count()):
         el = candidates.nth(i)
         try:
