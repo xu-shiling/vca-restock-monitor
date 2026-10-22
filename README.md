@@ -3,9 +3,6 @@
 监控商品：Vintage Alhambra 手链 5 花 18K 黄金 虎眼石 VCARD35600，新加坡官网：
 https://www.vancleefarpels.com/sg/en/collections/jewelry/alhambra/vcard35600---vintage-alhambra-bracelet-5-motifs.html
 
-中国官网会拦截 GitHub 的服务器（页面显示“请求已被拦截”），所以 GitHub 上只监控新加坡。
-如需监控中国官网，要在中国大陆网络的电脑上运行：`python monitor.py --url <中国官网链接>`。
-
 ## 部署步骤
 1. 新建一个 **Public** 仓库（Public 仓库的 Actions 免费不限时长；Private 每 5 分钟跑一次会很快用完免费额度），上传本目录全部文件。
 2. 仓库 Settings → Secrets and variables → Actions → New repository secret：

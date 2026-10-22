@@ -57,7 +57,7 @@ https://github.com/xu-shiling/vca-restock-monitor 是一个已经在真实页面
 6. 告诉我买到后怎么停用监控
 
 ## 已知的坑
-- 中国大陆官网（.cn）会拦截 GitHub 的服务器（页面显示"请求已被拦截"），这种网站不能放进 GitHub 的监控。
+- 有些官网会拦截 GitHub 的服务器（check 报错，截图里是拦截页而不是商品页），这种网站不适合用 GitHub 监控，请如实告诉我。
 - 同一个地区官网的不同语言页面（例如 /sg/en/ 和 /sg/zh/）库存相同，只监控一个。
 - 提醒我：在旧的运行页面点 "Re-run jobs" 会用旧代码重跑，测试新代码要点 "Run workflow"。
 
