@@ -30,13 +30,17 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-# Only the Singapore and mainland China boutiques are monitored.
-DEFAULT_URLS = [
+SG_URL = (
     "https://www.vancleefarpels.com/sg/en/collections/jewelry/alhambra/"
-    "vcard35600---vintage-alhambra-bracelet-5-motifs.html",
+    "vcard35600---vintage-alhambra-bracelet-5-motifs.html"
+)
+# The China site blocks GitHub Actions runners ("请求已被拦截"), so it is only
+# checked when run from a network it accepts: --url CN_URL or PRODUCT_URL.
+CN_URL = (
     "https://www.vancleefarpels.cn/cn/zh/collections/jewelry/alhambra/"
-    "vcard35600---vintage-alhambra-bracelet-5-motifs.html",
-]
+    "vcard35600---vintage-alhambra-bracelet-5-motifs.html"
+)
+DEFAULT_URLS = [SG_URL]
 # Case-insensitive; matched against the button's visible text.
 IN_STOCK_TEXTS = ["add to bag", "add to cart", "buy now", "加入购物袋", "立即购买", "立刻购买"]
 OUT_OF_STOCK_TEXTS = ["order by phone", "contact an ambassador", "call to order", "电话订购", "致电订购"]
@@ -197,7 +201,7 @@ def alert_in_stock(url, detail):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--url", action="append", dest="urls",
-                    help="product page to check; repeatable (default: Singapore + China)")
+                    help="product page to check; repeatable (default: Singapore)")
     ap.add_argument("--test-email", action="store_true", help="send a test email and exit")
     ap.add_argument("--test-bark", action="store_true", help="send a test critical Bark alert and exit")
     ap.add_argument("--timeout", type=float, default=30, help="seconds to wait for a button to appear")

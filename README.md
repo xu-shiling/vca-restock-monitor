@@ -1,10 +1,10 @@
 # VCA 补货监控
 
-监控商品：Vintage Alhambra 手链 5 花 18K 黄金 虎眼石 VCARD35600，同时监控**新加坡**和**中国**官网（任一有货即提醒，提醒标题会写明哪个官网）：
-- 新加坡：https://www.vancleefarpels.com/sg/en/collections/jewelry/alhambra/vcard35600---vintage-alhambra-bracelet-5-motifs.html
-- 中国：https://www.vancleefarpels.cn/cn/zh/collections/jewelry/alhambra/vcard35600---vintage-alhambra-bracelet-5-motifs.html
+监控商品：Vintage Alhambra 手链 5 花 18K 黄金 虎眼石 VCARD35600，新加坡官网：
+https://www.vancleefarpels.com/sg/en/collections/jewelry/alhambra/vcard35600---vintage-alhambra-bracelet-5-motifs.html
 
-只想监控其中一个：在仓库 Settings → Variables 里新建 `PRODUCT_URL`，填对应链接。
+中国官网会拦截 GitHub 的服务器（页面显示“请求已被拦截”），所以 GitHub 上只监控新加坡。
+如需监控中国官网，要在中国大陆网络的电脑上运行：`python monitor.py --url <中国官网链接>`。
 
 ## 部署步骤
 1. 新建一个 **Public** 仓库（Public 仓库的 Actions 免费不限时长；Private 每 5 分钟跑一次会很快用完免费额度），上传本目录全部文件。
@@ -22,7 +22,7 @@
 
 ## 结果说明
 - 绿色 ✅：检查正常（无货或有货且已提醒）
-- 红色 ❌ 退出码 1：某个官网两个按钮都没看到（可能被反爬拦截或页面改版），在该次运行的 Artifacts 里下载截图查看
+- 红色 ❌ 退出码 1：两个按钮都没看到（可能被反爬拦截或页面改版），在该次运行的 Artifacts 里下载截图查看
 - 红色 ❌ 退出码 2：有货但提醒发送失败
 
 有货后每 5 分钟会持续提醒，买到后在 Actions 页面点 “Disable workflow” 停止。
